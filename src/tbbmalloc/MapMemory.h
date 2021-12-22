@@ -86,17 +86,55 @@ int UnmapMemory(void *area, size_t bytes)
 #include <windows.h>
 
 #define MEMORY_MAPPING_USES_MALLOC 0
-void* MapMemory (size_t bytes, bool)
+// CMA Modification Start
+//void* MapMemory (size_t bytes, bool)
+//{
+//    /* Is VirtualAlloc thread safe? */
+//    return VirtualAlloc(NULL, bytes, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+//}
+//
+//int UnmapMemory(void *area, size_t /*bytes*/)
+//{
+//    BOOL result = VirtualFree(area, 0, MEM_RELEASE);
+//    return !result;
+//}
+#include "cma_stats.h"
+void* MapMemory(
+	size_t	Bytes,
+	bool	HughPages
+)
 {
-    /* Is VirtualAlloc thread safe? */
-    return VirtualAlloc(NULL, bytes, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+	PVOID						mem;
+	MEMORY_BASIC_INFORMATION	mbi;
+
+	mem = VirtualAlloc(NULL, Bytes, MEM_RESERVE | MEM_COMMIT | (HughPages ? MEM_LARGE_PAGES : 0), PAGE_READWRITE);
+	if (!mem)
+		return nullptr;
+
+	InterlockedIncrement64((LONG64*)(HughPages ? &CmaPerfCallVirtualAllocLP : &CmaPerfCallVirtualAlloc));
+	
+
+	if (VirtualQuery(mem, &mbi, sizeof(mbi)) == sizeof(mbi))
+		InterlockedAdd64((LONG64*)&CmaPerfMappedMemory, mbi.RegionSize);
+
+	return mem;
 }
 
-int UnmapMemory(void *area, size_t /*bytes*/)
+int UnmapMemory(
+	void	*Area,
+	size_t	Bytes
+)
 {
-    BOOL result = VirtualFree(area, 0, MEM_RELEASE);
-    return !result;
+	MEMORY_BASIC_INFORMATION	mbi;	
+	
+	if (VirtualQuery(Area, &mbi, sizeof(mbi)) == sizeof(mbi))
+		InterlockedAdd64((LONG64*)&CmaPerfMappedMemory, -((LONG64)mbi.RegionSize));
+
+	BOOL result = VirtualFree(Area, 0, MEM_RELEASE);
+	InterlockedIncrement64((LONG64*)&CmaPerfCallVirtualFree);
+	return !result;
 }
+// CMA Modification End
 
 #else
 
