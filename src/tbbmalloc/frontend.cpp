@@ -188,6 +188,9 @@ class ThreadId {
 #endif
 public:
     ThreadId() : tid(GetMyTID()) {}
+    ThreadId(ThreadId &other) = delete;
+    ~ThreadId() = default;
+
 #if USE_PTHREAD
     bool isCurrentThreadId() const { return pthread_equal(pthread_self(), tid.load(std::memory_order_relaxed)); }
 #else
@@ -198,7 +201,7 @@ public:
         return *this;
     }
     static bool init() { return true; }
-#if __TBB_SOURCE_DIRECTLY_INCLUDED   
+#if __TBB_SOURCE_DIRECTLY_INCLUDED
     static void destroy() {}
 #endif
 };
@@ -539,7 +542,6 @@ private:
     std::atomic<Block*> head;
     int         size;
     Backend    *backend;
-    bool        lastAccessMiss;
 public:
     static const int POOL_HIGH_MARK = 32;
     static const int POOL_LOW_MARK  = 8;
@@ -593,7 +595,7 @@ public:
 private:
     std::atomic<bool> unused;
 public:
-    TLSData(MemoryPool *mPool, Backend *bknd) : memPool(mPool), freeSlabBlocks(bknd) {}
+    TLSData(MemoryPool *mPool, Backend *bknd) : memPool(mPool), freeSlabBlocks(bknd), currCacheIdx(0) {}
     MemoryPool *getMemPool() const { return memPool; }
     Bin* getAllocationBin(size_t size);
     void release();
@@ -696,7 +698,7 @@ bool AllLocalCaches::cleanup(bool cleanOnlyUnused)
 
 void AllLocalCaches::markUnused()
 {
-    bool locked;
+    bool locked = false;
     MallocMutex::scoped_lock lock(listLock, /*block=*/false, &locked);
     if (!locked) // not wait for marking if someone doing something with it
         return;
@@ -1648,6 +1650,7 @@ bool OrphanedBlocks::cleanup(Backend* backend)
 FreeBlockPool::ResOfGet FreeBlockPool::getBlock()
 {
     Block *b = head.exchange(nullptr);
+    bool lastAccessMiss;
 
     if (b) {
         size--;
@@ -1810,7 +1813,7 @@ void TLSData::release()
 
         if (syncOnMailbox) {
             // Although, we synchronized on nextPrivatizable inside a block, we still need to
-            // synchronize on the bin lifetime because the thread releasing an object into the public 
+            // synchronize on the bin lifetime because the thread releasing an object into the public
             // free list is touching the bin (mailbox and mailLock)
             MallocMutex::scoped_lock scoped_cs(bin[index].mailLock);
         }
@@ -2874,7 +2877,7 @@ void doThreadShutdownNotification(TLSData* tls, bool main_thread)
         defaultMemPool->onThreadShutdown(defaultMemPool->getTLS(/*create=*/false));
         // Take lock to walk through other pools; but waiting might be dangerous at this point
         // (e.g. on Windows the main thread might deadlock)
-        bool locked;
+        bool locked = false;
         MallocMutex::scoped_lock lock(MemoryPool::memPoolListLock, /*wait=*/!main_thread, &locked);
         if (locked) { // the list is safe to process
             for (MemoryPool *memPool = defaultMemPool->next; memPool; memPool = memPool->next)
@@ -3301,7 +3304,7 @@ extern "C" int scalable_allocation_command(int cmd, void *param)
             released = tls->externalCleanup(/*cleanOnlyUnused*/false, /*cleanBins=*/true);
         break;
     case TBBMALLOC_CLEAN_ALL_BUFFERS:
-        released = defaultMemPool->extMemPool.hardCachesCleanup();
+        released = defaultMemPool->extMemPool.hardCachesCleanup(true);
         break;
     default:
         return TBBMALLOC_INVALID_PARAM;
