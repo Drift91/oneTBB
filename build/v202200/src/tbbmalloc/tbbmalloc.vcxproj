@@ -45,8 +45,8 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
     <_ProjectFileVersion>10.0.20506.1</_ProjectFileVersion>
-    <TargetName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">tbbmalloc_v2021110</TargetName>
-    <TargetName Condition="'$(Configuration)|$(Platform)'=='Release-NoCollect|x64'">tbbmalloc_v2021110_nocollect</TargetName>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">tbbmalloc_v202200</TargetName>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='Release-NoCollect|x64'">tbbmalloc_v202200_nocollect</TargetName>
     <TargetExt Condition="'$(Configuration)|$(Platform)'=='Release|x64'">.dll</TargetExt>
     <TargetExt Condition="'$(Configuration)|$(Platform)'=='Release-NoCollect|x64'">.dll</TargetExt>
   </PropertyGroup>
