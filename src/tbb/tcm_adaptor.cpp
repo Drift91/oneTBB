@@ -1,5 +1,5 @@
 /*
-    Copyright (c) 2023 Intel Corporation
+    Copyright (c) 2023-2024 Intel Corporation
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
@@ -137,11 +137,9 @@ public:
             // The permit has changed during the reading, so the callback will be invoked soon one more time and
             // we can just skip this renegotiation iteration.
             if (!new_permit.flags.stale) {
-                __TBB_ASSERT(
-                    new_permit.state != TCM_PERMIT_STATE_INACTIVE || new_concurrency == 0,
-                    "TCM did not nullify resources while deactivating the permit"
-                );
-                delta = update_concurrency(new_concurrency);
+                // If there is no other demand in TCM, the permit may still have granted concurrency but
+                // be in the deactivated state thus we enforce 0 allotment to preserve arena invariants.
+                delta = update_concurrency(new_permit.state != TCM_PERMIT_STATE_INACTIVE ? new_concurrency : 0);
             }
         }
         if (delta) {
@@ -172,7 +170,7 @@ public:
         __TBB_ASSERT_EX(res == TCM_RESULT_SUCCESS, nullptr);
     }
 
-    void init(d1::constraints& constraints) {
+    void init(tcm_client_id_t client_id, d1::constraints& constraints) {
         __TBB_ASSERT(tcm_request_permit, nullptr);
         __TBB_ASSERT(tcm_deactivate_permit, nullptr);
 
@@ -192,6 +190,12 @@ public:
 
         my_permit_request.min_sw_threads = 0;
         my_permit_request.max_sw_threads = 0;
+        my_permit_request.flags.request_as_inactive = 1;
+
+        tcm_result_t res = tcm_request_permit(client_id, my_permit_request, this, &my_permit_handle, nullptr);
+        __TBB_ASSERT_EX(res == TCM_RESULT_SUCCESS, nullptr);
+
+        my_permit_request.flags.request_as_inactive = 0;
     }
 
     void register_thread() override {
@@ -281,7 +285,7 @@ pm_client* tcm_adaptor::create_client(arena& a) {
 }
 
 void tcm_adaptor::register_client(pm_client* c, d1::constraints& constraints) {
-    static_cast<tcm_client*>(c)->init(constraints);
+    static_cast<tcm_client*>(c)->init(my_impl->client_id, constraints);
 }
 
 void tcm_adaptor::unregister_and_destroy_client(pm_client& c) {

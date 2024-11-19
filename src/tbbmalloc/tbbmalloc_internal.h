@@ -1,5 +1,5 @@
 /*
-    Copyright (c) 2005-2023 Intel Corporation
+    Copyright (c) 2005-2024 Intel Corporation
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
@@ -104,7 +104,11 @@ void suppress_unused_warning( const T& ) {}
 /*
  * Default huge page size
  */
+#if defined __loongarch64
+static const size_t HUGE_PAGE_SIZE = 32 * 1024 * 1024;
+#else
 static const size_t HUGE_PAGE_SIZE = 2 * 1024 * 1024;
+#endif
 
 /********** End of global default constants *********/
 
@@ -230,9 +234,13 @@ template<unsigned NUM>
 class BitMaskMax : public BitMaskBasic<NUM> {
 public:
     void set(size_t idx, bool val) {
+        MALLOC_ASSERT(NUM >= idx + 1, ASSERT_TEXT);
+
         BitMaskBasic<NUM>::set(NUM - 1 - idx, val);
     }
     int getMaxTrue(unsigned startIdx) const {
+        MALLOC_ASSERT(NUM >= startIdx + 1, ASSERT_TEXT);
+
         int p = BitMaskBasic<NUM>::getMinTrue(NUM-startIdx-1);
         return -1==p? -1 : (int)NUM - 1 - p;
     }
@@ -494,7 +502,11 @@ private:
         MALLOC_ASSERT(!pageSize, "Huge page size can't be set twice. Double initialization.");
 
         // Initialize object variables
-        pageSize       = hugePageSize * 1024; // was read in KB from meminfo
+        if (hugePageSize > -1) {
+            pageSize = hugePageSize * 1024; // was read in KB from meminfo
+        } else {
+            pageSize = 0;
+        }
         isHPAvailable  = hpAvailable;
         isTHPAvailable = thpAvailable;
 

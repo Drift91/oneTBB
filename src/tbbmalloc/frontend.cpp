@@ -1,5 +1,5 @@
 /*
-    Copyright (c) 2005-2023 Intel Corporation
+    Copyright (c) 2005-2024 Intel Corporation
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
@@ -819,6 +819,7 @@ unsigned int getSmallObjectIndex(unsigned int size)
 /*
  * Depending on indexRequest, for a given size return either the index into the bin
  * for objects of this size, or the actual size of objects in this bin.
+ * TODO: Change return type to unsigned short.
  */
 template<bool indexRequest>
 static unsigned int getIndexOrObjectSize (unsigned int size)
@@ -1523,7 +1524,7 @@ bool Block::readyToShare()
     {
         MallocMutex::scoped_lock scoped_cs(publicFreeListLock);
         if ( (oldVal=publicFreeList)==nullptr )
-            (intptr_t&)(publicFreeList) = UNUSABLE;
+            publicFreeList = reinterpret_cast<FreeObject *>(UNUSABLE);
     }
 #endif
     return oldVal==nullptr;
@@ -1583,6 +1584,7 @@ void Block::initEmptyBlock(TLSData *tls, size_t size)
     unsigned int objSz = getObjectSize(size);
 
     cleanBlockHeader();
+    MALLOC_ASSERT(objSz <= USHRT_MAX, "objSz must not be less 2^16-1");
     objectSize = objSz;
     markOwned(tls);
     // bump pointer should be prepared for first allocation - thus mode it down to objectSize
