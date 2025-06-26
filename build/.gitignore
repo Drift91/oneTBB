@@ -1,11 +1,11 @@
 # Ignore all build files except solution and project file
 *
 !.gitignore
-!v202200
-v202200/*
-!v202200/TBB.sln
-!v202200/src
-v202200/src/*
-!v202200/src/tbbmalloc
-v202200/src/tbbmalloc/*
-!v202200/src/tbbmalloc/tbbmalloc.vcxproj
+!v202210
+v202210/*
+!v202210/TBB.sln
+!v202210/src
+v202210/src/*
+!v202210/src/tbbmalloc
+v202210/src/tbbmalloc/*
+!v202210/src/tbbmalloc/tbbmalloc.vcxproj
