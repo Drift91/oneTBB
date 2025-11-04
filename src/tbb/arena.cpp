@@ -1,5 +1,6 @@
 /*
     Copyright (c) 2005-2025 Intel Corporation
+    Copyright (c) 2025 UXL Foundation Contributors
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
@@ -277,7 +278,7 @@ arena::arena(threading_control* control, unsigned num_slots, unsigned num_reserv
     }
     my_fifo_task_stream.initialize(my_num_slots);
     my_resume_task_stream.initialize(my_num_slots);
-#if __TBB_PREVIEW_CRITICAL_TASKS
+#if __TBB_CRITICAL_TASKS
     my_critical_task_stream.initialize(my_num_slots);
 #endif
     my_mandatory_requests = 0;
@@ -337,7 +338,7 @@ void arena::free_arena () {
     my_co_cache.cleanup();
     my_default_ctx->~task_group_context();
     cache_aligned_deallocate(my_default_ctx);
-#if __TBB_PREVIEW_CRITICAL_TASKS
+#if __TBB_CRITICAL_TASKS
     __TBB_ASSERT( my_critical_task_stream.empty(), "Not all critical tasks were executed");
 #endif
     // Clear enfources synchronization with observe(false)
@@ -375,7 +376,7 @@ bool arena::has_tasks() {
         tasks_are_available = !my_slots[k].is_empty();
     }
     tasks_are_available = tasks_are_available || has_enqueued_tasks() || !my_resume_task_stream.empty();
-#if __TBB_PREVIEW_CRITICAL_TASKS
+#if __TBB_CRITICAL_TASKS
     tasks_are_available = tasks_are_available || !my_critical_task_stream.empty();
 #endif
     return tasks_are_available;
@@ -844,11 +845,7 @@ void task_arena_impl::execute(d1::task_arena_base& ta, d1::delegate_base& d) {
                 a->my_exit_monitors.notify_one(); // do not relax!
             }
             // process possible exception
-            auto exception = exec_context.my_exception.load(std::memory_order_acquire);
-            if (exception) {
-                __TBB_ASSERT(exec_context.is_group_execution_cancelled(), "The task group context with an exception should be canceled.");
-                exception->throw_self();
-            }
+            handle_context_exception(exec_context);
             __TBB_ASSERT(governor::is_thread_data_set(td), nullptr);
             return;
         } // if (index1 == arena::out_of_arena)
